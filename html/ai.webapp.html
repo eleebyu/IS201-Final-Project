@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minesweeper</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+            flex-direction: column;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        #grid {
+            display: grid;
+            gap: 2px;
+            margin: 20px;
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #d3d3d3;
+            border: 1px solid #bbb;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .revealed {
+            background-color: #e1e1e1;
+            cursor: default;
+        }
+
+        .mine {
+            background-image: url('https://img.icons8.com/ios-filled/50/000000/bomb.png');
+            background-size: 20px 20px; /* Smaller bomb icon */
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        .flag {
+            background-image: url('https://img.icons8.com/ios-filled/50/000000/flag.png');
+            background-size: 20px 20px; /* Smaller flag icon */
+            background-repeat: no-repeat;
+            background-position: center;
+            color: transparent; /* Hide the text */
+            border: 1px solid red;  /* Adds a red border around the flag */
+            background-color: red;  /* Sets the background color to red */
+        }
+
+        #status {
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        #gameOverMessage {
+            font-size: 20px;
+            font-weight: bold;
+            color: red;
+        }
+
+        #gridOptions {
+            margin-bottom: 20px;
+        }
+
+        #gameScreen {
+            display: block;
+        }
+
+        #endScreen {
+            display: none;
+        }
+
+        #winMessage {
+            display: none;
+        }
+
+        select {
+            padding: 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Minesweeper</h1>
+
+        <div id="gridOptions">
+            <select id="gridSizeSelect">
+                <option value="5x5">Small Grid (5x5)</option>
+                <option value="10x10">Medium Grid (10x10)</option>
+                <option value="15x15">Large Grid (15x15)</option>
+            </select>
+        </div>
+
+        <div id="gameScreen">
+            <div id="status">
+                <button id="restartButton" style="display: none;">Restart Game</button>
+                <button id="backButton" style="display: none;">Back to Grid Options</button>
+                <p id="gameOverMessage" style="display: none;"></p>
+            </div>
+            <div id="grid"></div>
+        </div>
+
+        <div id="endScreen">
+            <p id="winMessage" style="display: none;"></p>
+            <button id="playAgainButton" style="display: none;">Play Again</button>
+            <button id="backFromEndButton">Back to Grid Options</button>
+        </div>
+    </div>
+
+    <script>
+        let rows = 10;
+        let cols = 10;
+        let numMines = 15;
+        let grid = [];
+        let gameOver = false;
+        let flagsLeft = numMines;
+
+        // Function to start a new game with selected grid size
+        function startNewGame() {
+            grid = [];
+            gameOver = false;
+            flagsLeft = numMines;
+            document.getElementById("gameOverMessage").style.display = "none";
+            document.getElementById("winMessage").style.display = "none";
+            document.getElementById("endScreen").style.display = "none";
+            document.getElementById("gridOptions").style.display = "none";
+            document.getElementById("gameScreen").style.display = "block";
+
+            const gridContainer = document.getElementById("grid");
+            gridContainer.innerHTML = "";
+            gridContainer.style.gridTemplateColumns = `repeat(${cols}, 30px)`;
+            gridContainer.style.gridTemplateRows = `repeat(${rows}, 30px)`;
+
+            for (let row = 0; row < rows; row++) {
+                const rowArr = [];
+                for (let col = 0; col < cols; col++) {
+                    const cell = {
+                        isMine: false,
+                        isRevealed: false,
+                        isFlagged: false,
+                        surroundingMines: 0
+                    };
+                    rowArr.push(cell);
+
+                    const cellElement = document.createElement("div");
+                    cellElement.classList.add("cell");
+                    cellElement.dataset.row = row;
+                    cellElement.dataset.col = col;
+                    cellElement.addEventListener("click", handleCellClick);
+                    cellElement.addEventListener("contextmenu", handleRightClick);
+                    gridContainer.appendChild(cellElement);
+                }
+                grid.push(rowArr);
+            }
+
+            placeMines();
+            calculateSurroundingMines();
+        }
+
+        // Place mines randomly
+        function placeMines() {
+            let minesPlaced = 0;
+            while (minesPlaced < numMines) {
+                const row = Math.floor(Math.random() * rows);
+                const col = Math.floor(Math.random() * cols);
+
+                if (!grid[row][col].isMine) {
+                    grid[row][col].isMine = true;
+                    minesPlaced++;
+                }
+            }
+        }
+
+        // Calculate surrounding mines for each cell
+        function calculateSurroundingMines() {
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    if (grid[row][col].isMine) continue;
+
+                    let surroundingMines = 0;
+                    for (let r = row - 1; r <= row + 1; r++) {
+                        for (let c = col - 1; c <= col + 1; c++) {
+                            if (r >= 0 && r < rows && c >= 0 && c < cols && grid[r][c].isMine) {
+                                surroundingMines++;
+                            }
+                        }
+                    }
+                    grid[row][col].surroundingMines = surroundingMines;
+                }
+            }
+        }
+
+        // Handle left click (reveal cell)
+        function handleCellClick(event) {
+            if (gameOver || event.target.classList.contains("revealed")) return;
+
+            const row = parseInt(event.target.dataset.row);
+            const col = parseInt(event.target.dataset.col);
+            const cell = grid[row][col];
+
+            if (cell.isFlagged) return;
+
+            revealCell(row, col);
+
+            if (cell.isMine) {
+                gameOverMessage("Game Over! You clicked on a mine.");
+            } else if (isWin()) {
+                gameOverMessage("You won!");
+            }
+        }
+
+        // Handle right click (flag cell)
+        function handleRightClick(event) {
+            event.preventDefault();
+            if (gameOver || event.target.classList.contains("revealed")) return;
+
+            const row = parseInt(event.target.dataset.row);
+            const col = parseInt(event.target.dataset.col);
+            const cell = grid[row][col];
+
+            if (cell.isFlagged) {
+                cell.isFlagged = false;
+                flagsLeft++;
+                event.target.classList.remove("flag");
+                event.target.textContent = "";
+            } else if (flagsLeft > 0) {
+                cell.isFlagged = true;
+                flagsLeft--;
+                event.target.classList.add("flag");
+                event.target.textContent = "🚩";  // Red flag icon
+            }
+
+            updateStatus();
+        }
+
+        // Reveal a cell
+        function revealCell(row, col) {
+            const cell = grid[row][col];
+            const cellElement = document.querySelector(`[data-row='${row}'][data-col='${col}']`);
+
+            if (cell.isRevealed || cell.isFlagged) return;
+
+            cell.isRevealed = true;
+            cellElement.classList.add("revealed");
+
+            if (cell.isMine) {
+                cellElement.classList.add("mine");
+                cellElement.textContent = "💣";
+                revealAllMines();
+                return;
+            }
+
+            if (cell.surroundingMines > 0) {
+                cellElement.textContent = cell.surroundingMines;
+            } else {
+                for (let r = row - 1; r <= row + 1; r++) {
+                    for (let c = col - 1; c <= col + 1; c++) {
+                        if (r >= 0 && r < rows && c >= 0 && c < cols) {
+                            revealCell(r, c);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Reveal all mines when game over
+        function revealAllMines() {
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    if (grid[row][col].isMine) {
+                        const mineElement = document.querySelector(`[data-row='${row}'][data-col='${col}']`);
+                        mineElement.classList.add("mine");
+                        mineElement.textContent = "💣";
+                    }
+                }
+            }
+        }
+
+        // Check if the player has won
+        function isWin() {
+            let revealedCells = 0;
+            let totalCells = rows * cols;
+
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    if (grid[row][col].isRevealed) {
+                        revealedCells++;
+                    }
+                }
+            }
+
+            return revealedCells === totalCells - numMines;
+        }
+
+        // Display game over message
+        function gameOverMessage(message) {
+            gameOver = true;
+            document.getElementById("gameOverMessage").textContent = message;
+            document.getElementById("gameOverMessage").style.display = "block";
+            document.getElementById("restartButton").style.display = "inline-block";
+            document.getElementById("backButton").style.display = "inline-block";
+            document.getElementById("endScreen").style.display = "block";
+            document.getElementById("playAgainButton").style.display = "none";
+        }
+
+        // Update status with remaining flags
+        function updateStatus() {
+            document.getElementById("status").textContent = `Flags Left: ${flagsLeft}`;
+        }
+
+        // Handle grid size change
+        document.getElementById("gridSizeSelect").addEventListener("change", function(event) {
+            const selectedSize = event.target.value;
+
+            if (selectedSize === "5x5") {
+                rows = 5;
+                cols = 5;
+                numMines = 5;
+            } else if (selectedSize === "10x10") {
+                rows = 10;
+                cols = 10;
+                numMines = 15;
+            } else if (selectedSize === "15x15") {
+                rows = 15;
+                cols = 15;
+                numMines = 30;
+            }
+
+            startNewGame();
+        });
+
+        // Restart the game
+        document.getElementById("restartButton").addEventListener("click", function() {
+            startNewGame();
+        });
+
+        // Back to grid options
+        document.getElementById("backButton").addEventListener("click", function() {
+            document.getElementById("gameScreen").style.display = "none";
+            document.getElementById("gridOptions").style.display = "block";
+        });
+
+        // Play again after win
+        document.getElementById("playAgainButton").addEventListener("click", function() {
+            startNewGame();
+        });
+
+        // Back to grid options from win screen
+        document.getElementById("backFromEndButton").addEventListener("click", function() {
+            document.getElementById("endScreen").style.display = "none";
+            document.getElementById("gridOptions").style.display = "block";
+        });
+
+        // Start a new game when page loads
+        startNewGame();
+    </script>
+</body>
+</html>
+
+</body>
+</html>
